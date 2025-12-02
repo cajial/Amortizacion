@@ -4,7 +4,7 @@ $cuadro = [];
 $datos_calculados = [];
 $error = "";
 
-// Valores por defecto (basados en tu imagen)
+// Valores por defecto
 $capital = $_POST['capital'] ?? 0;
 $euribor = $_POST['euribor'] ?? 0;
 $diferencial = $_POST['diferencial'] ?? 0;
@@ -20,11 +20,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $periodicidad = filter_input(INPUT_POST, 'periodicidad', FILTER_VALIDATE_INT);
 
     if ($capital > 0 && $plazo_anios > 0 && $periodicidad > 0) {
-        // 2. Cálculos intermedios (replicando tu tabla superior)
+        // 2. Cálculos intermedios
         $tna = $euribor + $diferencial;             // TNA total
-        $n_cuotas = $plazo_anios * $periodicidad;   // Total cuotas (15 * 12 = 180)
+        $n_cuotas = $plazo_anios * $periodicidad;   // Total cuotas
         $i_anual = $tna / 100;
-        $i_periodo = $i_anual / $periodicidad;      // Int. Cuota (0.03 / 12 = 0.0025)
+        $i_periodo = $i_anual / $periodicidad;      // Int. Cuota
 
         // Cálculo de Cuota (Sistema Francés)
         if ($i_periodo == 0) {
@@ -34,16 +34,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
              $cuota = $capital * ($i_periodo * pow(1 + $i_periodo, $n_cuotas)) / (pow(1 + $i_periodo, $n_cuotas) - 1);
         }
 
-        // Guardamos datos calculados para mostrar en la "tabla superior"
+        // Guardamos datos calculados básicos
         $datos_calculados = [
             'tna' => $tna,
             'n_cuotas' => $n_cuotas,
             'int_cuota' => $i_periodo,
-            'cuota_teorica' => $cuota
+            'cuota_teorica' => $cuota,
+            'total_intereses' => 0 // Inicializamos a 0
         ];
 
         // 3. Generación del Cuadro de Amortización
         $saldo_pendiente = $capital;
+        $suma_intereses = 0; // Variable para acumular
 
         // Fila 0 (inicial)
         $cuadro[] = [
@@ -55,6 +57,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         for ($k = 1; $k <= $n_cuotas; $k++) {
             $interes = $saldo_pendiente * $i_periodo;
+            
+            // --- NUEVO: Acumulamos el interés de esta cuota ---
+            $suma_intereses += $interes; 
+
             $amortizacion_capital = $cuota - $interes;
 
             // Ajuste última cuota para cuadrar a 0 exacto
@@ -75,12 +81,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'saldo' => max(0, $saldo_pendiente)
             ];
         }
+        
+        // --- NUEVO: Guardamos el total acumulado en el array de datos ---
+        $datos_calculados['total_intereses'] = $suma_intereses;
+
     } else {
         $error = "Por favor, revisa que los valores numéricos sean positivos.";
     }
 }
 
-// Función de formateo para coincidir con tu imagen (3 decimales, coma como separador decimal)
+// Función de formateo
 function fmt($num) {
     return number_format($num, 3, ',', '.');
 }
@@ -162,7 +172,11 @@ function fmt_pct($num) {
                                 <td>Total cuotas (n)</td>
                                 <td class="text-end"><?= $datos_calculados['n_cuotas'] ?></td>
                             </tr>
-                            <tr class="bg-warning bg-opacity-10">
+                            <tr class="text-danger">
+                                <td><strong>Total Intereses</strong></td>
+                                <td class="text-end"><strong><?= fmt($datos_calculados['total_intereses']) ?></strong></td>
+                            </tr>
+                            <tr class="bg-warning bg-opacity-10 border-top">
                                 <td><strong>CUOTA</strong></td>
                                 <td class="text-end fs-5"><strong><?= fmt($datos_calculados['cuota_teorica']) ?></strong></td>
                             </tr>
